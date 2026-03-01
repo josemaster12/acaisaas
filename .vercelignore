@@ -1,6 +1,3 @@
-# Vercel
-.vercel
-
 # Dependencies
 node_modules
 .pnp
@@ -37,8 +34,8 @@ lerna-debug.log*
 # OS
 Thumbs.db
 
-# Backend (não será deployado na Vercel - use backend separado)
-# backend
+# Backend (não será deployado na Vercel)
+backend
 
 # Arquivos de configuração local
 .qwen
@@ -50,10 +47,7 @@ check-*.js
 fix-*.sql
 
 # SQLite database (backend)
-# backend/data/*.sqlite
+backend/data/*.sqlite
 
 # Uploads locais
-# backend/uploads
-
-# Lock files (opcional - manter apenas package-lock.json ou bun.lockb)
-# bun.lockb
+backend/uploads
