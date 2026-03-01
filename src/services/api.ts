@@ -376,9 +376,19 @@ async function request(endpoint: string, options: any = {}) {
 
     return data;
   } catch (error: any) {
+    console.error('[API] Erro na requisição:', error);
+    console.error('[API] Error details:', {
+      status: error?.status,
+      message: error?.message,
+      code: error?.code,
+      hasStatus: error?.status !== undefined
+    });
+    
     if (error.status) {
+      console.log('[API] Lançando erro com status:', error.status);
       throw error;
     }
+    console.warn('[API] Erro sem status - lançando erro genérico');
     throw {
       status: 0,
       message: 'Erro de conexão. Verifique sua conexão com o Supabase.',

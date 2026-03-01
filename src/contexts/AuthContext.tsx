@@ -63,6 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     const register = async (email: string, password: string, name: string) => {
+        console.log('[AuthContext] register() chamado com:', { email, name, passwordLength: password.length });
         try {
             setError(null);
             console.log('[AuthContext] Iniciando cadastro:', email);
@@ -79,13 +80,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
             localStorage.setItem('user', JSON.stringify(response.user));
         } catch (err: any) {
             console.error('[AuthContext] Erro no cadastro:', err);
+            console.error('[AuthContext] Error details:', {
+                message: err?.message,
+                code: err?.code,
+                status: err?.status
+            });
 
             // Verificar se é erro de confirmação de email - isso é na verdade um "sucesso parcial"
             if (err?.code === 'EMAIL_CONFIRMATION_REQUIRED') {
+                console.log('[AuthContext] Requer confirmação de email');
                 setError(err.message || 'Cadastro realizado! Verifique seu email para ativar a conta.');
                 // Não lançar erro - permitir que o UI mostre a mensagem de sucesso
                 return { requiresConfirmation: true, message: err.message };
             } else {
+                console.log('[AuthContext] Erro genérico - lançando');
                 setError(err.message || 'Erro ao criar conta');
                 throw err;
             }
