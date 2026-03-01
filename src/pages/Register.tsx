@@ -36,35 +36,50 @@ export default function Register() {
         setSuccessMessage(null);
         setRequiresConfirmation(false);
 
+        console.log('[Register] Iniciando cadastro:', { email, name });
+
         if (password !== confirmPassword) {
             clearError();
             setError('As senhas não coincidem');
+            console.error('[Register] Senhas não coincidem');
             return;
         }
 
         if (password.length < 6) {
             clearError();
             setError('A senha deve ter pelo menos 6 caracteres');
+            console.error('[Register] Senha muito curta');
             return;
         }
 
         setIsLoading(true);
+        console.log('[Register] Loading ativado');
 
         try {
+            console.log('[Register] Chamando register...');
             const result = await register(email, password, name);
-            
+            console.log('[Register] Resultado:', result);
+
             // Verificar se requer confirmação de email
             if (result?.requiresConfirmation) {
+                console.log('[Register] Requer confirmação de email');
                 setRequiresConfirmation(true);
                 setSuccessMessage(result.message || 'Cadastro realizado! Verifique seu email para ativar a conta.');
             } else {
+                console.log('[Register] Sucesso - redirecionando');
                 // Sucesso completo - redirecionar
                 navigate('/dashboard');
             }
         } catch (err: any) {
-            console.error('Erro no cadastro:', err);
+            console.error('[Register] Erro no cadastro:', err);
+            console.error('[Register] Error details:', {
+                message: err?.message,
+                code: err?.code,
+                status: err?.status
+            });
             // Erro já foi tratado no contexto
         } finally {
+            console.log('[Register] Loading desativado');
             setIsLoading(false);
         }
     };

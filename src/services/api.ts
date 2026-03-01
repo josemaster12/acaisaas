@@ -13,11 +13,16 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333';
 // Defina como false para usar Supabase
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK === 'true';
 
+console.log('[API] USE_MOCK_API:', USE_MOCK_API);
+console.log('[API] VITE_USE_MOCK:', import.meta.env.VITE_USE_MOCK);
+console.log('[API] VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? 'Configurado' : 'NÃO CONFIGURADO');
+
 // Importar API mockada quando necessário
 let mockAPI: any = null;
 if (USE_MOCK_API) {
   import('./mockApi').then(module => {
     mockAPI = module.mockAPI;
+    console.log('[API] Mock API carregada');
   });
 }
 
@@ -28,19 +33,24 @@ let supabaseInitializing = false;
 
 async function initializeSupabase() {
   if (supabaseServices && supabaseAuth) {
+    console.log('[API] Supabase já inicializado');
     return; // Já inicializado
   }
   if (supabaseInitializing) {
     // Já está inicializando, esperar
+    console.log('[API] Supabase já está inicializando, aguardando...');
     while (!supabaseServices || !supabaseAuth) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     return;
   }
-  
+
   supabaseInitializing = true;
   try {
     console.log('[API] Iniciando inicialização do Supabase...');
+    console.log('[API] URL:', import.meta.env.VITE_SUPABASE_URL);
+    console.log('[API] Key:', import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ? 'Presente' : 'AUSENTE');
+    
     const [servicesModule, authModule] = await Promise.all([
       import('@/lib/supabase.services'),
       import('@/lib/supabase')
@@ -58,7 +68,10 @@ async function initializeSupabase() {
 
 // Inicializar imediatamente se não for mock
 if (!USE_MOCK_API) {
+  console.log('[API] Modo Supabase - inicializando...');
   initializeSupabase();
+} else {
+  console.log('[API] Modo Mock - não inicializa Supabase');
 }
 
 // Variáveis de controle
