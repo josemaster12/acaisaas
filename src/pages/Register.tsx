@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Store } from 'lucide-react';
+import { Loader2, Store, CheckCircle } from 'lucide-react';
 
 export default function Register() {
     const navigate = useNavigate();
@@ -17,17 +17,33 @@ export default function Register() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [requiresConfirmation, setRequiresConfirmation] = useState(false);
+
+    // Listener para erros globais
+    useEffect(() => {
+        const handleError = (event: CustomEvent) => {
+            console.error('[Register] Erro global:', event.detail);
+        };
+
+        window.addEventListener('auth-error', handleError as EventListener);
+        return () => window.removeEventListener('auth-error', handleError as EventListener);
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         clearError();
+        setSuccessMessage(null);
+        setRequiresConfirmation(false);
 
         if (password !== confirmPassword) {
+            clearError();
             setError('As senhas não coincidem');
             return;
         }
 
         if (password.length < 6) {
+            clearError();
             setError('A senha deve ter pelo menos 6 caracteres');
             return;
         }
@@ -35,13 +51,19 @@ export default function Register() {
         setIsLoading(true);
 
         try {
-            await register(email, password, name);
-            // Sucesso - redirecionar
-            navigate('/dashboard');
+            const result = await register(email, password, name);
+            
+            // Verificar se requer confirmação de email
+            if (result?.requiresConfirmation) {
+                setRequiresConfirmation(true);
+                setSuccessMessage(result.message || 'Cadastro realizado! Verifique seu email para ativar a conta.');
+            } else {
+                // Sucesso completo - redirecionar
+                navigate('/dashboard');
+            }
         } catch (err: any) {
             console.error('Erro no cadastro:', err);
             // Erro já foi tratado no contexto
-            // Não re-lançar para não travar a UI
         } finally {
             setIsLoading(false);
         }
@@ -65,77 +87,114 @@ export default function Register() {
                     <CardDescription>
                         Crie sua conta para gerenciar lojas
                     </CardDescription>
-                    <Alert className="mt-4 bg-yellow-50 border-yellow-300">
-                        <AlertDescription className="text-sm text-yellow-800">
-                            ⚠️ <strong>Atenção:</strong> Este cadastro é apenas para donos de loja.
-                        </AlertDescription>
-                    </Alert>
+                    
+                    {/* Alerta de confirmação de email (sucesso) */}
+                    {requiresConfirmation && successMessage && (
+                        <Alert className="mt-4 bg-green-50 border-green-300">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <AlertDescription className="text-sm text-green-800 ml-2">
+                                {successMessage}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    
+                    {/* Alerta de erro */}
+                    {error && !requiresConfirmation && (
+                        <Alert className="mt-4 bg-red-50 border-red-300">
+                            <AlertDescription className="text-sm text-red-800">
+                                ❌ {error}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    
+                    {/* Alerta informativo */}
+                    {!error && !requiresConfirmation && (
+                        <Alert className="mt-4 bg-yellow-50 border-yellow-300">
+                            <AlertDescription className="text-sm text-yellow-800">
+                                ⚠️ <strong>Atenção:</strong> Este cadastro é apenas para donos de loja.
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit}>
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="name">Nome Completo</Label>
-                                <Input
-                                    id="name"
-                                    type="text"
-                                    placeholder="Seu nome"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="email">E-mail</Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    placeholder="seu@email.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="password">Senha</Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    placeholder="Mínimo 6 caracteres"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-                                <Input
-                                    id="confirmPassword"
-                                    type="password"
-                                    placeholder="Repita a senha"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </div>
-
+                    {requiresConfirmation ? (
+                        <div className="text-center space-y-4">
+                            <p className="text-muted-foreground">
+                                Você já pode fazer login após confirmar seu email.
+                            </p>
                             <Button
-                                type="submit"
+                                onClick={() => navigate('/login')}
                                 className="w-full bg-purple-600 hover:bg-purple-700"
-                                disabled={isLoading}
                             >
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Criar Conta de Lojista
+                                Ir para Login
                             </Button>
                         </div>
-                    </form>
+                    ) : (
+                        <form onSubmit={handleSubmit}>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Nome Completo</Label>
+                                    <Input
+                                        id="name"
+                                        type="text"
+                                        placeholder="Seu nome"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        required
+                                        disabled={isLoading}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">E-mail</Label>
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        placeholder="seu@email.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        disabled={isLoading}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="password">Senha</Label>
+                                    <Input
+                                        id="password"
+                                        type="password"
+                                        placeholder="Mínimo 6 caracteres"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        disabled={isLoading}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+                                    <Input
+                                        id="confirmPassword"
+                                        type="password"
+                                        placeholder="Repita a senha"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                        disabled={isLoading}
+                                    />
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    className="w-full bg-purple-600 hover:bg-purple-700"
+                                    disabled={isLoading}
+                                >
+                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Criar Conta de Lojista
+                                </Button>
+                            </div>
+                        </form>
+                    )}
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-2">
                     <p className="text-sm text-muted-foreground">

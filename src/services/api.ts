@@ -21,28 +21,51 @@ if (USE_MOCK_API) {
   });
 }
 
-// Importar serviços Supabase
+// Importar serviços Supabase - CARREGAR IMEDIATAMENTE
 let supabaseServices: any = null;
 let supabaseAuth: any = null;
-if (!USE_MOCK_API) {
-  Promise.all([
-    import('@/lib/supabase.services'),
-    import('@/lib/supabase')
-  ]).then(([servicesModule, authModule]) => {
+let supabaseInitializing = false;
+
+async function initializeSupabase() {
+  if (supabaseServices && supabaseAuth) {
+    return; // Já inicializado
+  }
+  if (supabaseInitializing) {
+    // Já está inicializando, esperar
+    while (!supabaseServices || !supabaseAuth) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return;
+  }
+  
+  supabaseInitializing = true;
+  try {
+    console.log('[API] Iniciando inicialização do Supabase...');
+    const [servicesModule, authModule] = await Promise.all([
+      import('@/lib/supabase.services'),
+      import('@/lib/supabase')
+    ]);
     supabaseServices = servicesModule.default;
     supabaseAuth = authModule.supabaseAuth;
     console.log('✅ Supabase conectado!');
-  });
+    console.log('[API] supabaseAuth:', !!supabaseAuth);
+    console.log('[API] supabaseServices:', !!supabaseServices);
+  } catch (error) {
+    console.error('❌ Erro ao inicializar Supabase:', error);
+    throw error;
+  }
+}
+
+// Inicializar imediatamente se não for mock
+if (!USE_MOCK_API) {
+  initializeSupabase();
 }
 
 // Variáveis de controle
 let mockAPIReady = false;
-let supabaseReady = false;
 
 if (USE_MOCK_API) {
   mockAPIReady = true;
-} else {
-  supabaseReady = true;
 }
 
 function waitForMockAPI() {
@@ -56,6 +79,28 @@ function waitForMockAPI() {
     };
     check();
   });
+}
+
+async function waitForSupabase() {
+  if (!supabaseServices || !supabaseAuth) {
+    await initializeSupabase();
+  }
+  
+  // Timeout de segurança
+  const timeout = 10000; // 10 segundos
+  const startTime = Date.now();
+  
+  while (!supabaseServices || !supabaseAuth) {
+    if (Date.now() - startTime > timeout) {
+      console.error('[API] Timeout ao aguardar Supabase inicializar');
+      throw { 
+        status: 500, 
+        message: 'Erro de conexão com o banco de dados. Tente novamente.', 
+        code: 'SUPABASE_TIMEOUT' 
+      };
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
 }
 
 /**
@@ -72,18 +117,8 @@ async function request(endpoint: string, options: any = {}) {
 
   // ==================== MODO SUPABASE ====================
   // Mapeia endpoints da API para chamadas Supabase
-  if (!supabaseServices || !supabaseAuth) {
-    await new Promise<void>((resolve) => {
-      const check = () => {
-        if (supabaseServices && supabaseAuth) {
-          resolve();
-        } else {
-          setTimeout(check, 100);
-        }
-      };
-      check();
-    });
-  }
+  // Aguardar Supabase estar pronto
+  await waitForSupabase();
 
   try {
     // AUTH
@@ -91,7 +126,7 @@ async function request(endpoint: string, options: any = {}) {
       const { email, password } = JSON.parse(options.body);
       const { data, error } = await supabaseAuth.signIn(email, password);
       if (error) throw { status: 401, message: error.message, code: 'AUTH_ERROR' };
-      
+
       // Buscar perfil do usuário
       const { data: profile } = await supabaseServices.profiles.getById(data.user.id);
       return {
@@ -106,24 +141,33 @@ async function request(endpoint: string, options: any = {}) {
         session: data.session
       };
     }
-    
+
     if (endpoint === '/api/auth/register' && options.method === 'POST') {
       const { email, password, name } = JSON.parse(options.body);
-      
+
       console.log('[API] Tentando cadastro:', email);
-      
+      console.log('[API] supabaseAuth disponível:', !!supabaseAuth);
+      console.log('[API] supabaseServices disponível:', !!supabaseServices);
+
       const { data, error } = await supabaseAuth.signUp(email, password, { name, role: 'owner' });
-      
+
+      console.log('[API] Resposta do signUp:', { 
+        hasData: !!data, 
+        hasError: !!error,
+        hasSession: !!data?.session,
+        userId: data?.user?.id 
+      });
+
       if (error) {
         console.error('[API] Erro no signup:', error);
         throw { status: 400, message: error.message, code: 'AUTH_ERROR' };
       }
 
       console.log('[API] Signup sucesso, user:', data.user?.id);
-      
+
       // Aguardar um pouco para o trigger criar o perfil
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Tentar criar o perfil manualmente se o trigger falhou
       try {
         const { error: profileError } = await supabaseServices.profiles.create({
@@ -132,7 +176,7 @@ async function request(endpoint: string, options: any = {}) {
           name,
           role: 'owner'
         });
-        
+
         if (profileError && !profileError.message.includes('duplicate')) {
           console.error('[API] Erro ao criar perfil:', profileError);
         }
@@ -156,9 +200,9 @@ async function request(endpoint: string, options: any = {}) {
       } else {
         // Sem sessão - email requer confirmação
         console.log('[API] Sem sessão - requer confirmação de email');
-        throw { 
-          status: 200, 
-          message: 'Cadastro realizado! Verifique seu email para ativar a conta.', 
+        throw {
+          status: 200,
+          message: 'Cadastro realizado! Verifique seu email para ativar a conta.',
           code: 'EMAIL_CONFIRMATION_REQUIRED',
           requiresConfirmation: true
         };

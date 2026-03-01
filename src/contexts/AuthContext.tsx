@@ -66,11 +66,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
             setError(null);
             console.log('[AuthContext] Iniciando cadastro:', email);
-            
+
             const response = await authAPI.register(email, password, name);
-            
+
             console.log('[AuthContext] Cadastro sucesso:', response);
 
+            // Se chegou aqui, cadastro foi completo (sem necessidade de confirmação)
             setToken(response.token);
             setUser(response.user);
 
@@ -78,14 +79,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
             localStorage.setItem('user', JSON.stringify(response.user));
         } catch (err: any) {
             console.error('[AuthContext] Erro no cadastro:', err);
-            
-            // Verificar se é erro de confirmação de email
+
+            // Verificar se é erro de confirmação de email - isso é na verdade um "sucesso parcial"
             if (err?.code === 'EMAIL_CONFIRMATION_REQUIRED') {
-                setError(err.message || 'Cadastro realizado! Verifique seu email.');
+                setError(err.message || 'Cadastro realizado! Verifique seu email para ativar a conta.');
+                // Não lançar erro - permitir que o UI mostre a mensagem de sucesso
+                return { requiresConfirmation: true, message: err.message };
             } else {
                 setError(err.message || 'Erro ao criar conta');
+                throw err;
             }
-            throw err;
         }
     };
 
