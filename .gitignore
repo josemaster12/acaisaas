@@ -57,3 +57,5 @@ fix-*.sql
 
 # Lock files (opcional - manter apenas package-lock.json ou bun.lockb)
 # bun.lockb
+
+.vercel
