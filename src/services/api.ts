@@ -109,13 +109,22 @@ async function request(endpoint: string, options: any = {}) {
     
     if (endpoint === '/api/auth/register' && options.method === 'POST') {
       const { email, password, name } = JSON.parse(options.body);
-      const { data, error } = await supabaseAuth.signUp(email, password, { name, role: 'owner' });
-      if (error) throw { status: 400, message: error.message, code: 'AUTH_ERROR' };
-
-      // Aguardar um pouco para garantir que o usuário foi criado
-      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Tentar criar o perfil manualmente (pode falhar se o trigger já criou)
+      console.log('[API] Tentando cadastro:', email);
+      
+      const { data, error } = await supabaseAuth.signUp(email, password, { name, role: 'owner' });
+      
+      if (error) {
+        console.error('[API] Erro no signup:', error);
+        throw { status: 400, message: error.message, code: 'AUTH_ERROR' };
+      }
+
+      console.log('[API] Signup sucesso, user:', data.user?.id);
+      
+      // Aguardar um pouco para o trigger criar o perfil
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Tentar criar o perfil manualmente se o trigger falhou
       try {
         const { error: profileError } = await supabaseServices.profiles.create({
           id: data.user!.id,
@@ -124,25 +133,36 @@ async function request(endpoint: string, options: any = {}) {
           role: 'owner'
         });
         
-        // Ignorar erro de "duplicate key" se o trigger já criou
         if (profileError && !profileError.message.includes('duplicate')) {
-          console.error('Erro ao criar perfil:', profileError);
+          console.error('[API] Erro ao criar perfil:', profileError);
         }
       } catch (err) {
-        // Perfil já existe ou erro ignorável
-        console.log('Perfil já existe ou erro ignorável');
+        console.log('[API] Perfil já existe ou erro ignorável');
       }
 
-      return {
-        token: data.session?.access_token,
-        user: {
-          id: data.user!.id,
-          email,
-          name,
-          role: 'owner'
-        },
-        session: data.session
-      };
+      // Verificar se há sessão (pode ser null se exigir confirmação de email)
+      if (data.session) {
+        console.log('[API] Sessão disponível');
+        return {
+          token: data.session.access_token,
+          user: {
+            id: data.user!.id,
+            email,
+            name,
+            role: 'owner'
+          },
+          session: data.session
+        };
+      } else {
+        // Sem sessão - email requer confirmação
+        console.log('[API] Sem sessão - requer confirmação de email');
+        throw { 
+          status: 200, 
+          message: 'Cadastro realizado! Verifique seu email para ativar a conta.', 
+          code: 'EMAIL_CONFIRMATION_REQUIRED',
+          requiresConfirmation: true
+        };
+      }
     }
     
     if (endpoint === '/api/auth/me' && options.method === 'GET') {

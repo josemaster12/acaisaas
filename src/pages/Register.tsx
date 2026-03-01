@@ -36,9 +36,12 @@ export default function Register() {
 
         try {
             await register(email, password, name);
+            // Sucesso - redirecionar
             navigate('/dashboard');
         } catch (err: any) {
-            // Erro já tratado no contexto
+            console.error('Erro no cadastro:', err);
+            // Erro já foi tratado no contexto
+            // Não re-lançar para não travar a UI
         } finally {
             setIsLoading(false);
         }

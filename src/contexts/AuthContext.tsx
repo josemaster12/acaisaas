@@ -65,15 +65,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const register = async (email: string, password: string, name: string) => {
         try {
             setError(null);
+            console.log('[AuthContext] Iniciando cadastro:', email);
+            
             const response = await authAPI.register(email, password, name);
             
+            console.log('[AuthContext] Cadastro sucesso:', response);
+
             setToken(response.token);
             setUser(response.user);
-            
+
             localStorage.setItem('token', response.token);
             localStorage.setItem('user', JSON.stringify(response.user));
         } catch (err: any) {
-            setError(err.message || 'Erro ao criar conta');
+            console.error('[AuthContext] Erro no cadastro:', err);
+            
+            // Verificar se é erro de confirmação de email
+            if (err?.code === 'EMAIL_CONFIRMATION_REQUIRED') {
+                setError(err.message || 'Cadastro realizado! Verifique seu email.');
+            } else {
+                setError(err.message || 'Erro ao criar conta');
+            }
             throw err;
         }
     };
